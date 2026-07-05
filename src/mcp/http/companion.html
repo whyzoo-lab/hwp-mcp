@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>rhwp 문서 서비스</title>
+<style>
+  :root {
+    --brand: #4f46e5;
+    --brand-2: #6366f1;
+    --brand-ink: #3730a3;
+    --bg-1: #eef2ff;
+    --bg-2: #e0e7ff;
+    --ink: #1e1b3a;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    --radius: 14px;
+    --shadow: 0 10px 30px -12px rgba(49, 46, 129, .35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    color: var(--ink);
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    padding: 2.5rem 1rem 4rem;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .brand {
+    display: flex; align-items: center; gap: .7rem;
+    margin: 0 0 1.6rem;
+  }
+  .brand .mark {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: grid; place-items: center;
+    background: linear-gradient(140deg, var(--brand), var(--brand-2));
+    color: #fff; font-weight: 800; font-size: 1.15rem;
+    box-shadow: var(--shadow);
+  }
+  .brand h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
+  .brand p { margin: .1rem 0 0; color: var(--muted); font-size: .85rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1rem 0;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
+  }
+  .card > h2 {
+    font-size: 1.05rem; margin: 0 0 .3rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .card > .sub { color: var(--muted); font-size: .85rem; margin: 0 0 1rem; }
+
+  /* 로그인 카드는 중앙 정렬 + 살짝 좁게 */
+  #login { max-width: 400px; margin: 4vh auto 0; }
+  #login .brand { justify-content: center; margin-bottom: 1.3rem; }
+  #login .brand p { text-align: center; }
+
+  .field { margin: .6rem 0; }
+  .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: .3rem; font-weight: 600; }
+  input[type=text], input[type=password] {
+    width: 100%; font-size: .95rem; padding: .65rem .8rem;
+    border: 1px solid var(--line); border-radius: 10px; background: #fbfbfe;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input[type=text]:focus, input[type=password]:focus {
+    outline: none; border-color: var(--brand-2);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.18); background: #fff;
+  }
+  .check { display: flex; align-items: center; gap: .5rem; font-size: .9rem; margin: .7rem 0; color: var(--ink); cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--brand); }
+
+  button {
+    font-size: .92rem; font-weight: 600; padding: .6rem 1rem;
+    border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(140deg, var(--brand), var(--brand-2)); color: #fff;
+    transition: transform .05s, filter .15s;
+  }
+  button:hover { filter: brightness(1.05); }
+  button:active { transform: translateY(1px); }
+  button.ghost { background: #fff; color: var(--brand-ink); border-color: var(--line); }
+  button.ghost:hover { background: #f5f5ff; }
+  button.sm { padding: .4rem .7rem; font-size: .82rem; }
+  .btn-full { width: 100%; margin-top: .5rem; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+
+  .msg { font-size: .85rem; margin-left: .3rem; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+
+  code {
+    background: #f4f4fb; padding: .2rem .45rem; border-radius: 6px;
+    word-break: break-all; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: .85rem;
+  }
+  .kv { margin: .5rem 0; font-size: .9rem; }
+  .kv b { color: var(--muted); font-weight: 600; margin-right: .4rem; }
+
+  #drop {
+    border: 2px dashed #c7cbe8; border-radius: 12px; padding: 2rem; text-align: center;
+    color: var(--muted); background: #fafaff; cursor: pointer; transition: all .15s;
+  }
+  #drop:hover { border-color: var(--brand-2); color: var(--brand-ink); }
+  #drop.over { border-color: var(--brand); color: var(--brand); background: #f0f1ff; }
+
+  .doc, .user {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .6rem .2rem; border-bottom: 1px solid #f0f0f5;
+  }
+  .doc:last-child, .user:last-child { border-bottom: none; }
+  .badge {
+    font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px;
+    background: #eef2ff; color: var(--brand-ink); margin-left: .5rem;
+  }
+  .empty { color: var(--muted); font-size: .88rem; padding: .8rem .2rem; }
+  .divider { height: 1px; background: var(--line); margin: 1.1rem 0; border: 0; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 로그인 화면 -->
+  <section id="login" class="card">
+    <div class="brand">
+      <div class="mark">한</div>
+      <div>
+        <h1>rhwp 문서 서비스</h1>
+        <p>HWP 문서를 대화로 편집하세요</p>
+      </div>
+    </div>
+    <div class="field">
+      <label for="u">사용자명</label>
+      <input id="u" type="text" placeholder="아이디" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label for="p">비밀번호</label>
+      <input id="p" type="password" placeholder="비밀번호" autocomplete="current-password" />
+    </div>
+    <button class="btn-full" onclick="login()">로그인</button>
+    <div><span id="loginmsg" class="msg err"></span></div>
+  </section>
+
+  <!-- 로그인 후 헤더 -->
+  <div id="apphead" class="brand hidden">
+    <div class="mark">한</div>
+    <div>
+      <h1>rhwp 문서 서비스</h1>
+      <p><span id="whoami"></span></p>
+    </div>
+    <div style="margin-left:auto"><button class="ghost sm" onclick="logout()">로그아웃</button></div>
+  </div>
+
+  <!-- MCP 커넥터 설정 -->
+  <section id="setup" class="card hidden">
+    <h2>🔌 MCP 커넥터 설정</h2>
+    <p class="sub">아래 URL을 Claude의 원격 MCP 커넥터에 등록하세요. claude.ai 웹은 URL만 등록하면 로그인·승인으로 연결됩니다.</p>
+    <div class="kv"><b>URL</b><code id="mcpurl"></code></div>
+    <div class="kv"><b>토큰</b><code id="token">재발급 버튼으로 새 토큰을 받으세요 — 1회만 표시됩니다</code></div>
+    <div class="row" style="margin-top:.8rem">
+      <button class="ghost sm" onclick="rotate()">토큰 재발급</button>
+    </div>
+  </section>
+
+  <!-- 관리자: 계정 관리 (is_admin일 때만 노출) -->
+  <section id="admin" class="card hidden">
+    <h2>👤 계정 관리 <span class="badge">관리자</span></h2>
+    <p class="sub">새 사용자를 추가하고 권한을 부여할 수 있습니다.</p>
+    <form id="createUserForm" autocomplete="off">
+      <div class="field">
+        <label for="nu">아이디</label>
+        <input id="nu" type="text" placeholder="새 사용자 아이디" />
+      </div>
+      <div class="field">
+        <label for="np">비밀번호</label>
+        <input id="np" type="password" placeholder="비밀번호" />
+      </div>
+      <label class="check"><input type="checkbox" id="nadmin" /> 관리자 권한 부여</label>
+      <button type="submit">계정 생성</button>
+      <span id="createmsg" class="msg"></span>
+    </form>
+    <hr class="divider" />
+    <div id="userlist"></div>
+  </section>
+
+  <!-- 파일 -->
+  <section id="file-manager" class="card hidden">
+    <h2>📄 내 문서</h2>
+    <div id="drop">여기로 HWP/HWPX 파일을 드래그하거나 클릭해 업로드</div>
+    <input id="file" type="file" class="hidden" accept=".hwp,.hwpx" />
+    <div id="docs"></div>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+async function api(path, opts) { return fetch(path, opts||{}); }
+
+async function refreshMe() {
+  const r = await api('/api/me');
+  if (r.ok) {
+    const me = await r.json();
+    $('login').classList.add('hidden');
+    $('apphead').classList.remove('hidden');
+    $('setup').classList.remove('hidden');
+    $('file-manager').classList.remove('hidden');
+    $('whoami').textContent = (me.username || '') + (me.is_admin ? ' · 관리자' : '');
+    $('mcpurl').textContent = location.origin + '/mcp';
+    if (me.is_admin) { $('admin').classList.remove('hidden'); loadUsers(); }
+    else { $('admin').classList.add('hidden'); }
+    loadDocs();
+    return true;
+  }
+  $('login').classList.remove('hidden');
+  $('apphead').classList.add('hidden');
+  ['setup','file-manager','admin'].forEach(id => $(id).classList.add('hidden'));
+  return false;
+}
+async function login() {
+  const r = await api('/api/login', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({username: $('u').value, password: $('p').value})});
+  $('loginmsg').textContent = r.ok ? '' : '로그인 실패 — 아이디 또는 비밀번호를 확인하세요';
+  if (r.ok) { $('p').value=''; refreshMe(); }
+}
+async function logout() { await api('/api/logout', {method:'POST'}); refreshMe(); }
+async function rotate() {
+  const r = await api('/api/token/rotate', {method:'POST'});
+  const v = await r.json();
+  $('token').textContent = v.token || ('오류: ' + (v.error||''));
+}
+
+/* ── 관리자: 계정 관리 ── */
+async function loadUsers() {
+  const r = await api('/api/admin/users'); if (!r.ok) return;
+  const v = await r.json();
+  const box = $('userlist'); box.innerHTML = '';
+  const users = v.users || [];
+  if (!users.length) { box.innerHTML = '<div class="empty">사용자가 없습니다.</div>'; return; }
+  users.forEach(u => {
+    const row = document.createElement('div'); row.className = 'user';
+    const name = document.createElement('span');
+    name.textContent = u.username;
+    if (u.is_admin) { const b = document.createElement('span'); b.className='badge'; b.textContent='관리자'; name.appendChild(b); }
+    row.appendChild(name); box.appendChild(row);
+  });
+}
+$('createUserForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const msg = $('createmsg'); msg.className = 'msg'; msg.textContent = '';
+  const body = { username: $('nu').value.trim(), password: $('np').value, is_admin: $('nadmin').checked };
+  const r = await api('/api/admin/users', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body)});
+  const v = await r.json().catch(()=>({}));
+  if (r.ok) {
+    msg.className = 'msg ok'; msg.textContent = `'${v.username}' 계정을 생성했습니다`;
+    $('nu').value=''; $('np').value=''; $('nadmin').checked=false;
+    loadUsers();
+  } else {
+    msg.className = 'msg err'; msg.textContent = v.error || '생성 실패';
+  }
+};
+
+/* ── 파일 ── */
+async function loadDocs() {
+  const r = await api('/api/documents'); const v = await r.json();
+  const box = $('docs'); box.innerHTML = '';
+  const docs = v.documents || [];
+  if (!docs.length) { box.innerHTML = '<div class="empty">아직 업로드한 문서가 없습니다.</div>'; return; }
+  docs.forEach(d => {
+    const row = document.createElement('div'); row.className = 'doc';
+    const label = document.createElement('span'); label.textContent = d.name + '  (' + d.handle + ')';
+    const btn = document.createElement('button'); btn.className='ghost sm'; btn.textContent = '다운로드';
+    btn.onclick = async () => {
+      const rr = await api('/api/download-url?handle=' + encodeURIComponent(d.handle));
+      const vv = await rr.json(); if (vv.download_url) location.href = vv.download_url;
+    };
+    row.appendChild(label); row.appendChild(btn); box.appendChild(row);
+  });
+}
+async function uploadFile(file) {
+  const r = await api('/api/upload-url', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({name: file.name})});
+  const v = await r.json();
+  if (!v.upload_url) { alert('업로드 URL 실패: ' + (v.error||'')); return; }
+  const put = await fetch(v.upload_url, {method:'PUT', body: file});
+  if (!put.ok) { alert('업로드 실패'); return; }
+  loadDocs();
+}
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+$('file').onchange = (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); };
+
+/* 엔터로 로그인 */
+['u','p'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') login(); }));
+refreshMe();
+</script>
+</body>
+</html>

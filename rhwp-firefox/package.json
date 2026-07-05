@@ -1,0 +1,17 @@
+{
+  "name": "rhwp-firefox",
+  "version": "0.2.8",
+  "description": "rhwp HWP 뷰어 & 에디터 — Firefox 확장 프로그램",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node build.mjs",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vite": "^6.1.0"
+  }
+}

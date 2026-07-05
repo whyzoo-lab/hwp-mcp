@@ -1,0 +1,359 @@
+import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
+
+export class HwpEditorProvider implements vscode.CustomReadonlyEditorProvider {
+  private static readonly viewType = "rhwp.hwpViewer";
+
+  /** 파일 URI 문자열 → 열린 WebviewPanel 추적 */
+  private readonly panels = new Map<string, vscode.WebviewPanel>();
+
+  static register(context: vscode.ExtensionContext): { provider: HwpEditorProvider; disposable: vscode.Disposable } {
+    const provider = new HwpEditorProvider(context);
+    const disposable = vscode.window.registerCustomEditorProvider(
+      HwpEditorProvider.viewType,
+      provider,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+        supportsMultipleEditorsPerDocument: false,
+      }
+    );
+    return { provider, disposable };
+  }
+
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  /** 해당 파일의 webview에 디버그 오버레이 렌더링 요청 */
+  async sendDebugOverlay(uri: vscode.Uri, onSvgs: (svgs: string[]) => void): Promise<void> {
+    const key = uri.toString();
+    const panel = this.panels.get(key);
+    this.debugOverlayCallbacks.set(key, onSvgs);
+    if (panel) {
+      panel.reveal();
+      panel.webview.postMessage({ type: "exportDebugOverlay" });
+    } else {
+      await vscode.commands.executeCommand("vscode.openWith", uri, HwpEditorProvider.viewType);
+      this.pendingDebugOverlay.add(key);
+    }
+  }
+
+  /** 해당 파일의 webview에 SVG 내보내기 요청 */
+  async sendExportSvg(uri: vscode.Uri, onSvgs: (svgs: string[]) => void): Promise<void> {
+    const key = uri.toString();
+    const panel = this.panels.get(key);
+    this.exportSvgCallbacks.set(key, onSvgs);
+    if (panel) {
+      panel.reveal();
+      panel.webview.postMessage({ type: "exportSvg" });
+    } else {
+      await vscode.commands.executeCommand("vscode.openWith", uri, HwpEditorProvider.viewType);
+      this.pendingExportSvg.add(key);
+    }
+  }
+
+  /** 열린 직후 SVG 내보내기를 해야 할 URI 집합 */
+  private readonly pendingExportSvg = new Set<string>();
+
+  /** 열린 직후 디버그 오버레이를 내보내야 할 URI 집합 */
+  private readonly pendingDebugOverlay = new Set<string>();
+
+  /** SVG 내보내기 응답 콜백 */
+  private readonly exportSvgCallbacks = new Map<string, (svgs: string[]) => void>();
+
+  /** 디버그 오버레이 SVG 응답 콜백 */
+  private readonly debugOverlayCallbacks = new Map<string, (svgs: string[]) => void>();
+
+  async openCustomDocument(
+    uri: vscode.Uri,
+    _openContext: vscode.CustomDocumentOpenContext,
+    _token: vscode.CancellationToken
+  ): Promise<vscode.CustomDocument> {
+    return { uri, dispose: () => {} };
+  }
+
+  async resolveCustomEditor(
+    document: vscode.CustomDocument,
+    webviewPanel: vscode.WebviewPanel,
+    _token: vscode.CancellationToken
+  ): Promise<void> {
+    const webview = webviewPanel.webview;
+
+    // 패널 추적 등록
+    const key = document.uri.toString();
+    this.panels.set(key, webviewPanel);
+    webviewPanel.onDidDispose(() => this.panels.delete(key));
+
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.context.extensionUri, "dist"),
+      ],
+    };
+
+    webview.html = this.getHtml(webview);
+
+    // Webview ready 후 HWP 파일 데이터만 전송 (WASM은 Webview에서 fetch)
+    webview.onDidReceiveMessage(async (msg) => {
+      if (msg.type === "ready") {
+        const fileData = await vscode.workspace.fs.readFile(document.uri);
+        const fileName = document.uri.path.split("/").pop() ?? "";
+
+        webview.postMessage({
+          type: "load",
+          fileName,
+          fileData: new Uint8Array(fileData),
+        });
+
+        // 열리자마자 SVG 내보내기를 해야 하는 경우
+        if (this.pendingExportSvg.delete(key)) {
+          setTimeout(() => webview.postMessage({ type: "exportSvg" }), 500);
+        }
+        // 열리자마자 디버그 오버레이를 내보내야 하는 경우
+        if (this.pendingDebugOverlay.delete(key)) {
+          setTimeout(() => webview.postMessage({ type: "exportDebugOverlay" }), 500);
+        }
+      }
+
+      if (msg.type === "exportSvgDone") {
+        const cb = this.exportSvgCallbacks.get(key);
+        this.exportSvgCallbacks.delete(key);
+        if (msg.error) {
+          vscode.window.showErrorMessage(`SVG 내보내기 실패: ${msg.error}`);
+        } else if (cb) {
+          cb(msg.svgs);
+        } else {
+          // 뷰어 내부 우클릭으로 요청된 경우 — 콜백 없이 직접 폴더 선택 → 저장
+          const defaultDir = vscode.Uri.file(
+            require("path").dirname(document.uri.fsPath)
+          );
+          const folders = await vscode.window.showOpenDialog({
+            defaultUri: defaultDir,
+            canSelectFolders: true,
+            canSelectFiles: false,
+            canSelectMany: false,
+            openLabel: "이 폴더에 SVG 저장",
+          });
+          if (!folders || folders.length === 0) return;
+          const outDir = folders[0].fsPath;
+          const baseName = require("path").basename(
+            document.uri.fsPath,
+            require("path").extname(document.uri.fsPath)
+          );
+          const fs = require("fs");
+          for (let i = 0; i < msg.svgs.length; i++) {
+            fs.writeFileSync(
+              require("path").join(outDir, `${baseName}_p${i + 1}.svg`),
+              msg.svgs[i],
+              "utf8"
+            );
+          }
+          const sel = await vscode.window.showInformationMessage(
+            `SVG ${msg.svgs.length}개 저장 완료 → ${outDir}`,
+            "폴더 열기"
+          );
+          if (sel === "폴더 열기") {
+            vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(outDir));
+          }
+        }
+      }
+
+      if (msg.type === "debugOverlaySvgs") {
+        const cb = this.debugOverlayCallbacks.get(key);
+        this.debugOverlayCallbacks.delete(key);
+        if (msg.error) {
+          vscode.window.showErrorMessage(`디버그 오버레이 실패: ${msg.error}`);
+        } else if (cb) {
+          cb(msg.svgs);
+        }
+      }
+    });
+  }
+
+  private getHtml(webview: vscode.Webview): string {
+    const viewerUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, "dist", "webview", "viewer.js")
+    );
+    const wasmUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, "dist", "media", "rhwp_bg.wasm")
+    );
+    const fontsBase = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, "dist", "media", "fonts")
+    );
+
+    const nonce = getNonce();
+    const cspSource = webview.cspSource;
+
+    // 폰트 매핑: [CSS font-family, woff2 파일명, format]
+    const fontEntries: [string, string, string][] = [
+      // 함초롬체 CDN (woff)
+      ['함초롬바탕', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2104@1.0/HANBatang.woff', 'woff'],
+      ['함초롬돋움', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/HCRDotum.woff', 'woff'],
+      ['함초롱바탕', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2104@1.0/HANBatang.woff', 'woff'],
+      ['함초롱돋움', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/HCRDotum.woff', 'woff'],
+      ['한컴바탕', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2104@1.0/HANBatang.woff', 'woff'],
+      ['한컴돋움', 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/HCRDotum.woff', 'woff'],
+      // 오픈소스 로컬 (woff2)
+      ['Noto Serif KR', `${fontsBase}/NotoSerifKR-Regular.woff2`, 'woff2'],
+      ['Noto Sans KR', `${fontsBase}/NotoSansKR-Regular.woff2`, 'woff2'],
+      ['Pretendard', `${fontsBase}/Pretendard-Regular.woff2`, 'woff2'],
+      ['D2Coding', `${fontsBase}/D2Coding-Regular.woff2`, 'woff2'],
+      ['나눔고딕', `${fontsBase}/NanumGothic-Regular.woff2`, 'woff2'],
+      ['나눔명조', `${fontsBase}/NanumMyeongjo-Regular.woff2`, 'woff2'],
+      ['고운바탕', `${fontsBase}/GowunBatang-Regular.woff2`, 'woff2'],
+      ['고운돋움', `${fontsBase}/GowunDodum-Regular.woff2`, 'woff2'],
+      // HY 폰트 → Noto 대체
+      ['HY헤드라인M', `${fontsBase}/NotoSansKR-Bold.woff2`, 'woff2'],
+      ['HY견명조', `${fontsBase}/NotoSerifKR-Bold.woff2`, 'woff2'],
+      ['HY신명조', `${fontsBase}/NotoSerifKR-Regular.woff2`, 'woff2'],
+      ['HY그래픽', `${fontsBase}/NotoSansKR-Regular.woff2`, 'woff2'],
+      ['휴먼명조', `${fontsBase}/NotoSerifKR-Regular.woff2`, 'woff2'],
+      // 시스템 폰트 → 오픈소스 대체
+      ['맑은 고딕', `${fontsBase}/Pretendard-Regular.woff2`, 'woff2'],
+      ['바탕', `${fontsBase}/NotoSerifKR-Regular.woff2`, 'woff2'],
+      ['돋움', `${fontsBase}/NotoSansKR-Regular.woff2`, 'woff2'],
+      ['굴림', `${fontsBase}/NotoSansKR-Regular.woff2`, 'woff2'],
+      ['굴림체', `${fontsBase}/D2Coding-Regular.woff2`, 'woff2'],
+      ['바탕체', `${fontsBase}/D2Coding-Regular.woff2`, 'woff2'],
+      ['궁서', `${fontsBase}/GowunBatang-Regular.woff2`, 'woff2'],
+    ];
+    const fontFaceCSS = fontEntries.map(([name, url, fmt]) =>
+      `@font-face { font-family: "${name}"; src: url("${url}") format("${fmt}"); font-display: swap; }`
+    ).join('\n    ');
+
+    return /* html */ `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none';
+             script-src 'nonce-${nonce}' ${cspSource} 'unsafe-eval' 'wasm-unsafe-eval';
+             style-src 'nonce-${nonce}' ${cspSource};
+             img-src ${cspSource} data:;
+             font-src ${cspSource} https://cdn.jsdelivr.net;
+             connect-src ${cspSource}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HWP Viewer</title>
+  <style nonce="${nonce}">
+    ${fontFaceCSS}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #scroll-container {
+      position: relative;
+      overflow: auto;
+      flex: 1;
+      gap: 12px;
+      padding: 12px 0;
+    }
+    #scroll-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      min-width: fit-content;
+    }
+    .page-wrapper {
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      background: white;
+    }
+    /* 상태 표시줄 */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      height: 26px;
+      padding: 0 10px;
+      background: var(--vscode-statusBar-background, #007acc);
+      border-top: 1px solid var(--vscode-statusBar-border, transparent);
+      flex-shrink: 0;
+      font-size: 12px;
+      color: var(--vscode-statusBar-foreground, #fff);
+      user-select: none;
+    }
+    .stb-item {
+      line-height: 26px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 0 4px;
+    }
+    .stb-divider {
+      width: 1px;
+      height: 14px;
+      background: var(--vscode-statusBar-foreground, #fff);
+      opacity: 0.3;
+      margin: 0 6px;
+      flex-shrink: 0;
+    }
+    .stb-message {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 8px;
+      line-height: 26px;
+      opacity: 0.8;
+    }
+    .stb-right {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    .stb-btn {
+      height: 22px;
+      border: none;
+      border-radius: 3px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 6px;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .stb-btn:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    .stb-zoom-val {
+      font-size: 12px;
+      min-width: 40px;
+      text-align: center;
+      line-height: 26px;
+    }
+  </style>
+</head>
+<body>
+  <div id="scroll-container" data-wasm-uri="${wasmUri}"><div id="scroll-content"></div></div>
+  <div id="status-bar">
+    <span id="stb-page" class="stb-item">- / - \uca4d</span>
+    <span class="stb-divider"></span>
+    <span id="stb-message" class="stb-message">\ubb38\uc11c\ub97c \ubd88\ub7ec\uc624\ub294 \uc911...</span>
+    <span class="stb-right">
+      <button id="stb-zoom-out" class="stb-btn" title="\ucd95\uc18c">\u2212</button>
+      <span id="stb-zoom-val" class="stb-zoom-val">100%</span>
+      <button id="stb-zoom-in" class="stb-btn" title="\ud655\ub300">+</button>
+    </span>
+  </div>
+  <script nonce="${nonce}" src="${viewerUri}"></script>
+</body>
+</html>`;
+  }
+}
+
+function getNonce(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let nonce = "";
+  for (let i = 0; i < 32; i++) {
+    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return nonce;
+}

@@ -1,0 +1,151 @@
+name: Render Diff
+
+on:
+  pull_request:
+    branches: [main, devel]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/paint/**'
+      - 'src/renderer/**'
+      - 'src/document_core/queries/rendering.rs'
+      - 'src/wasm_api.rs'
+      - 'src/main.rs'
+      - 'rhwp-studio/**'
+      - '.github/workflows/render-diff.yml'
+  workflow_dispatch:
+    inputs:
+      fixtures:
+        description: 'Comma-separated sample files under rhwp-studio/public/samples'
+        required: false
+        type: string
+      max-pages:
+        description: 'Pages per fixture to compare, or all'
+        required: false
+        default: '1'
+        type: string
+      full-suite:
+        description: 'Run all built-in sample fixtures'
+        required: false
+        default: false
+        type: boolean
+      write-images:
+        description: 'Write Canvas PNG artifacts even when cases pass. PDF report artifacts are always retained.'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+
+# [Task #1192 F] 같은 PR 에 새 push 가 오면 진행 중 run 을 취소해 중복 실행 제거.
+# render-diff 는 pull_request 트리거 위주 — cancel-in-progress 는 PR 이벤트 한정.
+concurrency:
+  group: render-diff-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  canvas-visual-diff:
+    name: Canvas visual diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install PDF raster tools
+        continue-on-error: true
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-render-diff-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-render-diff-cargo-
+
+      - name: Build WASM package
+        run: wasm-pack build --target web --dev
+
+      - name: Build native CLI for PDF report
+        continue-on-error: true
+        run: cargo build --bin rhwp
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: rhwp-studio/package-lock.json
+
+      - name: Install Studio dependencies
+        working-directory: rhwp-studio
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: rhwp-studio
+        run: |
+          browser_path=$(npx @puppeteer/browsers install chromium@latest --path .cache/puppeteer --format '{{path}}' | tail -n 1)
+          browser_path=$(realpath "$browser_path")
+          echo "CHROME_PATH=$browser_path" >> "$GITHUB_ENV"
+
+      - name: Check render diff script syntax
+        working-directory: rhwp-studio
+        run: |
+          node --check e2e/renderer-contract.test.mjs
+          node --check e2e/canvas-render-diff.test.mjs
+          node --check e2e/pdf-render-diff-report.mjs
+          node --check e2e/run-render-diff.mjs
+          npm run e2e:renderer-contract
+
+      - name: Run canvas visual diff and PDF report
+        working-directory: rhwp-studio
+        env:
+          VITE_PORT: 7700
+          RHWP_RENDER_DIFF_FILES: ${{ inputs.fixtures || '' }}
+          RHWP_RENDER_DIFF_MAX_PAGES: ${{ inputs['max-pages'] || '1' }}
+          RHWP_RENDER_DIFF_ALL: ${{ inputs['full-suite'] == true && '1' || '0' }}
+          RHWP_RENDER_DIFF_WRITE_IMAGES: ${{ inputs['write-images'] == true && '1' || '0' }}
+          RHWP_RENDER_DIFF_PDF: '1'
+          RHWP_RENDER_DIFF_PDF_WRITE_IMAGES: '1'
+          RHWP_RENDER_DIFF_RHWP_BIN: ../target/debug/rhwp
+        run: npm run e2e:render-diff:ci
+
+      - name: Add render diff summary
+        if: always()
+        working-directory: rhwp-studio
+        run: |
+          for summary in \
+            e2e/screenshots/render-diff/summary.md \
+            e2e/screenshots/render-diff/pdf-summary.md
+          do
+            if [ -f "$summary" ]; then
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+              printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload render diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-diff-artifacts
+          path: |
+            rhwp-studio/e2e/screenshots/render-diff/
+            output/e2e/
+            target/rhwp-studio-vite.log
+          if-no-files-found: ignore
+          retention-days: 14

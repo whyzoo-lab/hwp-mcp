@@ -1,0 +1,303 @@
+# Changelog
+
+## [0.7.17] - 2026-06-23
+
+라이브러리 버전 동기화. v0.7.16 후속 patch 릴리즈.
+
+핵심 변경:
+
+- OOXML 차트 렌더 정합 첫 작업(C1a): 3D막대·3D원형·ofPie 7종 2D 근사 라우팅 + 막대 누적/백분율 보정.
+- legacy 도형(ellipse/arc/polygon/curve/chart/ole) shapeComment 직렬화 누락 정정.
+- WASM options object API(`*Ex`) 26종 추가(하위 호환). 소비자 README/매뉴얼 보강.
+- rhwp-studio: 표 줄/칸 입력·지우기 회귀 보정, 미저장 문서 자동 백업·복구, 로컬 글꼴 동의, 그림/커서 정합, 표 셀 편집·보호.
+- 렌더링: Text IR v2 폰트 fallback 권위 유지, CanvasKit replay 계약 가드 확장.
+- 의존성 일괄 업데이트 + Cargo.lock git 추적.
+
+자세한 내용은 저장소 루트 CHANGELOG.md 를 참조하세요.
+
+## [0.7.16] - 2026-06-19
+
+라이브러리 버전 동기화. v0.7.15 후속 사이클 (6/6~6/19) patch 릴리즈.
+
+핵심 변경:
+
+- HWPX 저장 계약(serializer fidelity): 셀·글상자 컨트롤·lineseg·캡션 보존, secPr 여백·본문 단(colPr) IR 치환, 그림 크기·MEMO·shapeComment·등록 축·표 pageBreak 보존, 무손실 라운드트립 보강.
+- 한컴 호환: 누름틀 안내문(Direction) command 포맷 정정 — 한컴 에디터 안내문 바인딩 해소.
+- rhwp-studio: 드래그&드롭 로컬 파일 로딩 보안 게이트(모달 확인), 누름틀 편집·다크테마·표 셀 그림 정합.
+- 렌더링: native PDF export API, Text IR v2 폰트 증명 게이트, 미주 높이 SSOT, 회전 셀 그림 배치.
+- 외부 기여자 PR 다수 반영(@seo-rii/@planet6897/@oksure/@physwkim/@mrshinds/@postmelee/@msjang/@johndoekim/@Martinel2/@Mireutale/@jangster77).
+
+## [0.7.14] - 2026-06-05
+
+라이브러리 버전 동기화. v0.7.13 후속 사이클 (5/26~6/5) — 미주 흐름·간격 정합, 수식 렌더링/배치 정밀화, 표 셀 안 그림 편집 한컴 정합, HWPX 저장 계약 확장, 외부 기여자 PR 다수 반영 중심의 patch 릴리즈.
+
+핵심 변경:
+
+- 미주(해설): compact 미주 제목 사이 간격, 다줄 줄간격, 연속 인라인 수식 다행 병합, 다단 흐름 단 끝/오버플로우 보정.
+- 수식: root/sqrt·prime·cdots glued-split, LEFT-RIGHT 그룹 첨자 결합, 큰 연산자 간격, 수식 줄 한글 압축 해소.
+- 표 셀 그림: 삽입/토글/복사(Ctrl+C)/글상자 hit-test/중첩 셀 붙여넣기 한컴 정합.
+- 레이아웃: curve `<hp:seg>` 외곽선, textFlow roundtrip, z-order 합성, 회전 이미지 bbox, 폰트 폴백 정합.
+- HWPX 저장: Bookmark/Field/OLE chart/회전 그림/맞쪽 여백/masterpage idRef, 문단 id 전역 유니크.
+- rhwp-studio: 입력 재렌더 비용 축소, 모달 드래그 공통화, 대화상자 Enter/hit-test 보정.
+
+## [0.7.13] - 2026-05-26
+
+라이브러리 버전 동기화. v0.7.12 후속 사이클 (5/18~26) — HWPX 렌더링/저장 호환성, 시험지·공공기관 문서군 회귀, 외부 기여자 PR 반영 중심의 patch 릴리즈.
+
+핵심 변경:
+
+- HWPX → HWP 저장: 표/셀 contract, gradient `BORDER_FILL`, 셀 배경 이미지 채우기 유형, 메모 컨트롤, 목차 필드 마커/페이지 표기, 페이지 번호 관련 컨트롤 보강.
+- HWPX 렌더링: 바탕쪽, 머리말/꼬리말, 문단번호, 글상자 위치·그라데이션·곡률, 문단 테두리와 시험지 지문 박스 시각 정합 개선.
+- 조판: treat-as-char 표 LINE_SEG, 중첩 표 분할, 그림 pushdown/vpos, 다단 미주, 본문 하단 overflow 측정 정정.
+- Chrome 확장: 로컬 `file://` HWP/HWPX 열기 권한 안내와 중복 다운로드 억제 (#1131/#1132).
+- CI runner 디스크 부족 완화 및 외부 PR 다수 cherry-pick 반영.
+
+## [0.7.12] - 2026-05-18
+
+라이브러리 버전 동기화. v0.7.11 후속 사이클 (5/12~18) — 외부 기여자 PR 19건 머지 + @jangster77 PR 시리즈 7건 (#956~#968). 핵심 변경:
+
+**원 Issue #952 (1 통합 → 5 분리 결함) 완결**: 쪽 테두리 paper-based outline (#956) + sample16 page 18 빈 caption phantom advance (#958) + 시험지 page 1 문9 column picture advance skip (#961) + 시험지 page 2 cases formula off-by-one (#963) + 시험지 page 2 보기 textbox inline equation duplicate 차단 (#964).
+
+**WMF SetTextAlign vertical bits 정정** (#966): `mode & VTA_TOP(=0)` 항상-true 버그 → WMF [MS-WMF] 2.1.2.18 spec 정합 (PR #918 거대 PR root cause ~60 lines 단독 포팅).
+
+**HWP3 sample18 페이지 수 +2 inflate 정정** (#968): 빈 paragraph + [쪽나누기] + overflow case 단독 page 차단.
+
+**release 빌드 LTO + codegen-units=1 + strip** (#818): rhwp CLI -28% / WASM -6.5%.
+
+**rhwp-studio 신규 기능** (5/12~18): F5/F3 블록 선택 (#811) + 메뉴 hotkey 인프라 (#810) + 쪽 새 번호로 시작 (#809) + searchAllText API + rhwpDev.goto (#814) + 문서 비교·이력 분리 PR 1/3 (#799).
+
+## [0.7.11] - 2026-05-11
+
+라이브러리 버전 동기화. v0.7.10 후속 사이클 (5/10 + 5/11) — 외부 기여자 다수 PR 30+ 머지. 핵심 변경:
+
+**Skia native raster 단계적 진전** (Issue #536): P8 (#761) Layer IR contract hardening (paint::schema + paint::resources blake3) + P9 (#769) text replay parity (char overlap, tab leader, decoration, shade/shadow, emphasis, vertical rotation, control mark + text_replay.rs 모듈 분리).
+
+**HWP3 native 렌더링** (#753): hwp3-sample10.hwp Oracle 기술 문서 763 페이지 8 단계 정정 — HWP3 외부 file path 그림 IR + 사적 graphic char 매핑 + Hwp3TabDef 필드 순서 bug 정정 + 제목차례 자동 장식 inject + 차례 inline page 번호. Git LFS pdf-large/ 폴더 한정 격리 신규 도입.
+
+**페이지네이션 정정**: Task #775 (#778) — Task #703 다단 영역 InFrontOfText/BehindText 컬럼 분배 회귀 정정 (col_count == 1 가드).
+
+**rhwp-studio 인터랙션**: PR #781 scrollbar drag-during-scroll 결함 정정 + PR #786~#788 PR #739/#745 후속 결함 정정 (chord 키 Ctrl+N → Ctrl+M, Chrome reserved shortcut 회피 + 한글 IME chord e.code 판별 + 표 셀 pattern_type 가드 + 도구 모음 mousedown preventDefault).
+
+**rhwp-studio editor 신규 기능**: 표 편집 Undo/Redo (#728) + 표 크기 조절 SnapshotCommand (#748) + 셀 편집 다수 (블록 합계/평균/곱/숫자 서식/높이·너비 균등화/블록 계산식) + 다단 설정 dialog (#750) + 새 번호로 시작 dialog (#760) + Ctrl/Cmd+Arrow / Ctrl/Cmd+O / Ctrl+E (지우기) 단축키.
+
+상세는 저장소 루트 CHANGELOG.md 및 mydocs/pr/archives/ 참고.
+
+## [0.7.9] - 2026-05-01
+
+라이브러리 버전 동기화. v0.7.8 후속 사이클 — Task #501 (cell.padding 한컴 방어 로직 모방 정정) + PR #428/#494/#478/#498 cherry-pick (외부 기여자 4명, 17 commits). 핵심 변경: 비정상 큰 cell padding (mel-001 셀 1700 HU vs 1280 HU) 의 한컴 동작 모방 가드, 그룹 내 그림 직렬화 (#428), Paragraph::utf16_pos_to_char_idx 외부 노출 (#484), 수식 토크나이저 prefix 분리 + 렌더러 italic (#488), 빈 텍스트 + TAC 수식 셀 alignment (#490), 각주 multi-paragraph line_spacing (#483), Picture+Square wrap LINE_SEG 적용 (#489), 셀 paragraph 인라인 Shape 분기 가드 (#495), wrap=Square 표 paragraph margin (#480), PartialParagraph 인라인 Shape 페이지 라우팅 (#476), Canvas visual diff 검증 인프라 (#498). 상세는 저장소 루트 CHANGELOG.md 참고.
+
+## [0.7.8] - 2026-04-29
+
+라이브러리 버전 동기화. v0.7.7 후속 사이클 — 외부 컨트리뷰터 15 PR (cherry-pick) + 메인테이너 회귀 정정 3건 (#394, #416, #418) + 위키/README 정비. 핵심 변경: 그림 자동 크롭 공식 정정 (#430), TopAndBottom Picture chart 정정 (#409), 다단 vpos 보정 anchor (#412), heading-orphan vpos 보정 (#404), 동일 문단 inline TAC (#402), PageLayerTree generation API (#364). 상세는 저장소 루트 CHANGELOG.md 참고.
+
+## [0.7.7] - 2026-04-27
+
+라이브러리 버전 동기화. v0.7.6 회귀 정정 사이클 (#354, #359, #361, #362). TypesetEngine 의 페이지네이션 fit drift, page_num 갱신, PartialTable + Square wrap 처리 8항목 누적 정정. 상세는 저장소 루트 CHANGELOG.md 참고.
+
+## [0.7.6] - 2026-04-26
+
+라이브러리 버전 동기화. 외부 기여자 다수 + 조판 정밀화 사이클 (#268, #279, #324, #338, #340, #342). 상세는 저장소 루트 CHANGELOG.md 참고.
+
+## [0.7.3] - 2026-04-13
+
+### 수정
+
+- 디버그 오버레이 / SVG 내보내기 표 안 글자 배치 오류 수정 (#136)
+  - extension host WASM 직접 렌더링 → webview 위임 방식으로 전환
+  - `measureTextWidth` 스텁(`text.length * 8`) 제거, Canvas `measureText()` 실제 호출
+
+### 변경
+
+- 인쇄 커맨드 제거 (WSL 환경 미지원)
+- 뷰어 내부 우클릭 메뉴: 기본 메뉴 억제 → SVG로 내보내기 항목 추가
+
+---
+
+## [0.7.2] - 2026-04-13
+
+### 컨텍스트 메뉴 추가 (#132)
+
+탐색기/에디터 탭 우클릭 메뉴에 HWP 전용 커맨드 4개 추가:
+
+- **HWP: 인쇄** — 뷰어 webview에서 `window.print()` 호출
+- **HWP: SVG로 내보내기** — 페이지별 SVG 파일 저장 + 진행률 표시
+- **HWP: 디버그 오버레이 보기** — 문단/표 경계 시각화 HTML을 VS Code 탭에서 확인 (개발자용)
+- **HWP: 문단 덤프** — QuickPick으로 섹션/문단 선택 → ParaShape·LINE_SEG를 Output 채널에 출력 (개발자용)
+
+---
+
+## [0.7.1] - 2026-04-11
+
+### 양식 컨트롤 지원
+
+- HWPX 양식 컨트롤 파싱 구현 — checkBtn/btn/radioBtn/comboBox/edit (#110)
+- 양식 컨트롤 셀 커서 진입 가능 (#111)
+- 체크박스 클릭 토글 인터랙션 (#112)
+
+### 보안 수정
+
+- CodeQL XSS 경고 제거 — img.src URL 파싱 강화 (#128)
+
+---
+
+## [0.7.0] - 2026-04-11
+
+### 조판 개선
+
+- 표 캡션 current_height 보정 — LAYOUT_OVERFLOW 43→4건 수정 (#101)
+- PartialParagraph 페이지 경계 클리핑 방지 — 렌더링 단계 줄 y 클램핑 (#102)
+
+### 브라우저 확장 / 썸네일
+
+- HWP/HWPX 썸네일 자동 추출 CLI + Chrome 확장 연동 (#86)
+- Safari 확장 재작성 + 보안 수정 macOS 완성 (#83, #84, #88)
+
+---
+
+## [0.6.0] - 2026-04-07
+
+### 조판 개선
+
+- TAC 표 trailing ls 경계 조건 순환 오류 해결 (#40)
+- 같은 문단 TAC+블록 표 y_offset 역행 수정 (#41)
+- 머리말/꼬리말 내 Picture 렌더링 + 꼬리말 인라인 배치 (#42)
+- 그림 자르기(crop) 렌더링 + 이미지 테두리선 (#43)
+- 분할 표 셀 세로 정렬 — 중첩 표 높이 반영 + 분할 행 Top 강제 (#44)
+- 누름틀 안내문 높이 제외 + TAC 표 fix_overlay 이중 적용 수정 (#61)
+- 같은 문단 [선][선][표][표] 레이아웃 + 글앞으로/글뒤로 Shape vpos (#62)
+
+### 폰트
+
+- 오픈소스 폰트 폴백 전략 1~3단계 도입 — Pretendard, Noto Sans/Serif KR (#67)
+- SVG export 폰트 서브셋 임베딩 (#68)
+- 오픈소스 대체 폰트 메트릭 추가 (#69)
+
+### 코드 품질
+
+- Clippy 경고 0건 + CI 엄격 모드 전환 (#47)
+- 저작권 폰트 완전 제거 + THIRD_PARTY_LICENSES.md 작성
+- README 상표권 면책 조항(Trademark disclaimer) 추가
+
+## [0.5.4] - 2026-04-03
+
+### 수정
+
+- Bold↔Normal 폰트 전환 시 글자 겹침 (#38)
+  - Bold 폴백 폭 보정 제거, Justify 공백 최소 폭 보장
+  - 반각 구두점(''""…·‧) 폭 수정 + Canvas scale 렌더링
+  - 전각 통화 기호(₩€£¥) 폴백 처리
+- 통화 기호(₩) 렌더링 — 폰트 폴백 (#39)
+  - Canvas: 맑은고딕 폴백 폰트 전환
+  - SVG: 폰트 체인에 시스템 한글 폰트 추가
+- 다중 TAC 표 페이지네이션 (#35)
+  - 캡션 이중 계산 제거, common.height 클램프
+  - trailing line_spacing 제거, 중간 표 gap 이중 적용 제거
+- 인라인 TAC 표 텍스트 reflow (#34)
+  - LINE_SEG text_start 기반 줄 나눔
+
+## [0.5.3] - 2026-04-03
+
+### 수정
+
+- 머리말/꼬리말 표 셀 안 이미지 미렌더링 (#36)
+- 특수문자 포함 폰트 이름으로 문서 로드 실패 (#37)
+
+## [0.5.2] - 2026-04-03
+
+### 수정
+
+- 문단 삽입/삭제 후 페이지 수 과도 증가 (#30)
+  - measure_section 캐시 인덱스 조정, 증분 측정 최적화
+- 인라인 TAC 표 텍스트 흐름 배치 (#31)
+  - 표 하단 = 베이스라인 + outer_margin_bottom 세로 정렬
+- 인라인 TAC 표 텍스트 reflow 개행 시점 (#34)
+  - LINE_SEG text_start 기반 줄 나눔
+- 다중 TAC 표 페이지네이션 간격 과대 (#35)
+  - 캡션 이중 계산 제거, common.height 클램프, trailing ls 제거
+- TAC 표 pre-flush/fit 체크 0.5px 톨러런스 적용
+
+### 추가
+
+- createTableEx API — 인라인 TAC 표 생성 (#32)
+- 논리적 오프셋 체계 (insertTextLogical, getLogicalLength)
+- getPageRenderTree API — 렌더 트리 JSON 직렬화
+- E2E 조판 자동 검증 체계 (scenario-runner) (#33)
+
+## [0.5.1] - 2026-04-02
+
+### 수정
+
+- 확대 시 캔버스 왼쪽 스크롤 불가 (#29)
+  - scroll-container에 overflow:auto + scroll-content 래퍼 도입
+
+## [0.5.0] - 2026-04-02
+
+### 추가
+
+- HWPX TabDef 파싱: hp:switch 구조, 2× 스케일, fill_type 매핑 (#13)
+- 탭 리더 채울 모양 12종 SVG/Canvas 렌더링 (#13)
+- 밑줄/취소선 13종 렌더링: 물결선, 이중물결선 포함 (#16)
+- HWPX 글상자(사각형) 파싱: curSz/fillBrush/lineShape (#15)
+- IR 비교 도구: `rhwp ir-diff` CLI 명령 (#18)
+- CSS 디자인 토큰: 색상/타이포그래피/간격 30개 변수 (#22)
+- 모바일 반응형 레이아웃: 태블릿/모바일/터치/인쇄 대응 (#22)
+- iOS IME 한글 조합: contentEditable div + afterEdit 디바운스
+- 글상자 내부 표/그림 렌더링 (#24, #25)
+
+### 수정
+
+- 페이지네이션 부동소수점 누적 오차 0.5px 톨러런스 (#14)
+- HWPX 탭 문자 UTF-16 8 code unit 매핑 (#17)
+- ParaShape lineSpacing Fixed/SpaceOnly/Minimum 2× 스케일 (#18)
+- shape 배경 pattern_type 판정: >=0 → >0 (#16)
+- 글상자 기본 treat_as_char=true (#2)
+- iOS Canvas 최대 크기 64MP 제한 DPR 자동 조절
+- 폭 맞춤/쪽 맞춤 줌: pageInfo 이중 변환 제거
+- 글상자 내부 표 너비 비례 축소 (#24)
+- 개체묶음 자식 도형 크기 regression 수정 (#27)
+- 바탕쪽 탭 리더 렌더링 억제 — 고스트 라인 제거 (#28)
+- Canvas 이중선 종류 반전 + 간격 과도 수정 (#28)
+
+## [0.4.0] - 2026-03-31
+
+### 수정
+
+- Fixed 줄간격 TAC 표의 pagination overflow 수정 (#9)
+- 비-TAC 어울림 그림의 pagination 높이 반영 (#10)
+- TAC 표 line_end 보정에서 ls 이중 추가 제거 (#10)
+- HWPX 하이퍼링크 필드의 char_shape 매핑 수정 (#11)
+- HWPX 표 속성 UI 바인딩: table.common 필드 직접 사용
+- 문단 간격 UI 바인딩: 원본 HWPUNIT 값 사용 (/2.0 제거)
+- TAC 표 혼합 문단의 pagination 높이 이중 계산 수정 (#19)
+- 강제 줄넘김(Shift+Enter) 후 TAC 표의 ComposedLine 분리 (#20)
+- composer: LINE_SEG lh에 표 높이가 포함된 텍스트 줄을 th로 보정
+
+## [0.3.0] - 2026-03-30
+
+### 수정
+
+- HWPX switch/case 네임스페이스 분기 처리 (문단 간격/줄간격 정확도 개선)
+- 고정값 줄간격에서 TAC 표와 문단의 병행 배치 지원
+
+## [0.2.0] - 2026-03-30
+
+### 수정
+
+- 셀 내 TAC 이미지가 수평으로 나열되던 문제 수정 (LINE_SEG 기반 수직 배치)
+- 비-TAC 그림(어울림 배치) 높이가 후속 요소에 미반영되던 문제 수정
+
+### 추가
+
+- cellzoneList 셀 영역 배경 지원 (이미지/단색/그라데이션, HWP+HWPX)
+- imgBrush mode="TOTAL" 파싱 지원
+
+## [0.1.0] - 2026-03-29
+
+### 추가
+
+- HWP/HWPX 파일 읽기 전용 뷰어 (CustomReadonlyEditorProvider)
+- Canvas 2D 기반 문서 렌더링 (WASM)
+- 가상 스크롤 (on-demand 페이지 렌더링/해제)
+- Ctrl+마우스 휠 줌 (0.25x ~ 3.0x, 커서 앵커 기준)
+- 상태 표시줄 UI (페이지 네비게이션 + 줌 컨트롤)
+- 문서 내 이미지 지연 재렌더링

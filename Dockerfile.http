@@ -1,0 +1,26 @@
+# ---- builder ----
+FROM rust:1.93.1-slim-bookworm AS builder
+WORKDIR /app
+# 빌드 의존(rust-s3 tokio-rustls, postgres 등은 순수 Rust; 링크용 최소 도구만)
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config && rm -rf /var/lib/apt/lists/*
+COPY . .
+RUN cargo build --release --features mcp-http,svg-raster --bin rhwp-mcp-http
+
+# ---- runtime ----
+FROM debian:bookworm-slim
+# ca-certificates + 한글 폰트(fonts-nanum): PDF 서버 렌더 시 usvg fontdb가 시스템
+# 폰트에서 Nanum Myeongjo/Gothic을 찾아 한글 텍스트를 아웃라인으로 변환한다.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates fonts-nanum fonts-nanum-coding \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/rhwp-mcp-http /usr/local/bin/rhwp-mcp-http
+# rhwp의 레이아웃/렌더 폰트 탐색은 상대경로 ttfs/(특히 ttfs/opensource의 NotoSansKR)를
+# 쓴다. 이게 없으면 텍스트 폭 측정이 실패해 페이지가 0×0으로 깨진다. ttfs를 복사하고
+# WORKDIR를 /app으로 맞춰 상대경로가 해석되게 한다.
+COPY --from=builder /app/ttfs /app/ttfs
+WORKDIR /app
+# 마이그레이션 SQL과 companion.html은 include_str!로 바이너리에 내장되어 별도 복사 불필요.
+EXPOSE 8300
+ENV RHWP_BIND=0.0.0.0:8300
+ENTRYPOINT ["rhwp-mcp-http"]
+CMD ["serve"]

@@ -1,0 +1,156 @@
+name: Publish All Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_extensions:
+        description: 'Publish VSCode Marketplace and Open VSX extensions'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-wasm-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-wasm-
+
+      - name: Build WASM
+        run: wasm-pack build --target web --release
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+  publish-npm-core:
+    name: Publish @rhwp/core
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    environment: NPM_TOKEN
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+      - name: Prepare npm package
+        run: bash scripts/prepare-npm.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Publish to npm
+        working-directory: pkg
+        run: |
+          package_name=$(node -p "require('./package.json').name")
+          package_version=$(node -p "require('./package.json').version")
+          if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} already exists; skipping publish"
+          else
+            npm publish --access public
+          fi
+
+  publish-npm-editor:
+    name: Publish @rhwp/editor
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    environment: NPM_TOKEN
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Publish to npm
+        working-directory: npm/editor
+        run: |
+          package_name=$(node -p "require('./package.json').name")
+          package_version=$(node -p "require('./package.json').version")
+          if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} already exists; skipping publish"
+          else
+            npm publish --access public
+          fi
+
+  publish-vscode:
+    name: Publish VSCode Extension
+    needs: build-wasm
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_extensions }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: rhwp-vscode
+        run: npm install
+
+      - name: Copy logo
+        run: cp assets/logo/logo-128.png rhwp-vscode/media/icon.png
+
+      - name: Copy WASM files
+        run: |
+          cp pkg/rhwp_bg.wasm rhwp-vscode/media/
+          cp pkg/rhwp.js rhwp-vscode/media/
+
+      - name: Build extension
+        working-directory: rhwp-vscode
+        run: npm run compile
+
+      - name: Publish to VS Code Marketplace
+        working-directory: rhwp-vscode
+        run: npx vsce publish -p ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        working-directory: rhwp-vscode
+        run: npx ovsx publish -p ${{ secrets.OVSX_PAT }}

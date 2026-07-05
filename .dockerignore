@@ -1,0 +1,34 @@
+target/
+pkg/
+mydocs/
+.git/
+*.wasm
+
+# rhwp-mcp-http (Dockerfile.http) 빌드 컨텍스트 최적화:
+# cargo build --release --features mcp-http --bin rhwp-mcp-http 에는
+# Cargo.toml, Cargo.lock, src/, saved/blank2010.hwp(include_bytes! 임베드) 만 필요.
+# 아래 대용량/비소스 디렉터리는 빌드에 사용되지 않으므로 컨텍스트에서 제외한다.
+samples/
+pdf/
+pdf-large/
+# ttfs/ 는 제외하지 않는다 — 런타임 렌더(레이아웃 폰트 측정)가 ttfs/opensource/NotoSansKR를
+# 상대경로로 필요로 하며, Dockerfile.http 런타임 스테이지가 COPY --from=builder /app/ttfs 로 가져간다.
+web/
+rhwp-chrome/
+rhwp-firefox/
+rhwp-ios/
+rhwp-safari/
+rhwp-studio/
+rhwp-vscode/
+rhwp-shared/
+docs/
+output/
+assets/
+npm/
+typescript/
+bindings/
+scripts/
+template/
+tools/
+.superpowers/
+.github/

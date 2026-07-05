@@ -1,0 +1,194 @@
+[package]
+name = "rhwp"
+version = "0.7.17"
+edition = "2021"
+description = "HWP file viewer and editor written in Rust, targeting WebAssembly"
+license = "MIT"
+repository = "https://github.com/edwardkim/rhwp"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "rhwp"
+path = "src/main.rs"
+
+[[bin]]
+name = "font-metric-gen"
+path = "src/tools/font_metric_gen.rs"
+
+[[bin]]
+name = "rhwp-mcp"
+path = "src/bin/rhwp_mcp/main.rs"
+required-features = ["mcp"]
+
+[[bin]]
+name = "rhwp-mcp-http"
+path = "src/bin/rhwp_mcp_http/main.rs"
+required-features = ["mcp-http"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+cfb = "0.14"
+flate2 = "1.0"
+byteorder = "1.5"
+base64 = "0.22"
+blake3 = "1"
+zip = { version = "8.5", default-features = false, features = ["deflate"] }
+quick-xml = "0.40"
+codepage = "0.1.2"
+embedded-io = "0.7.1"
+encoding_rs = "0.8.35"
+paste = "1.0.15"
+snafu = "0.9.0"
+strum = { version = "0.28.0", default-features = false, features = ["derive"] }
+unicode-segmentation = "1.12.0"
+unicode-width = "0.2.2"
+image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png"] }
+pcx = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+console_error_panic_hook = { version = "0.1", optional = true }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "net", "fs", "io-util"], optional = true }
+deadpool-postgres = { version = "0.14.1", optional = true }
+tokio-postgres = { version = "0.7.18", features = ["with-uuid-1", "with-chrono-0_4"], optional = true }
+rust-s3 = { version = "0.37.2", default-features = false, features = ["tokio-rustls-tls", "fail-on-err"], optional = true }
+argon2 = { version = "0.5.3", optional = true }
+rand = { version = "0.10.1", optional = true }
+uuid = { version = "1.23.4", features = ["v4"], optional = true }
+chrono = { version = "0.4.45", features = ["serde"], optional = true }
+# load-bearing: argon2가 재노출하는 password_hash::rand_core::OsRng는 getrandom 백엔드가
+# feature unification으로 활성화되어야 resolve된다. 이 직접 의존성을 제거하면
+# `argon2::password_hash::rand_core::OsRng`가 "configured out" 에러로 빌드 실패한다
+# (Cargo.toml에서 제거 후 실측 확인됨). 절대 제거하지 말 것.
+password-hash = { version = "0.5", features = ["getrandom"], optional = true }
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"], optional = true }
+tower = { version = "0.5.3", default-features = false, features = ["util"], optional = true }
+sha2 = { version = "0.11.0", optional = true }
+
+[features]
+default = ["console_error_panic_hook"]
+native-skia = ["dep:resvg", "dep:skia-safe"]
+# SVG→PNG 래스터화(resvg/tiny-skia, 순수 Rust — skia C++ 불필요). VLM 이미지 렌더용.
+svg-raster = ["dep:resvg"]
+mcp = []
+mcp-http = ["dep:tokio", "dep:deadpool-postgres", "dep:tokio-postgres", "dep:rust-s3", "dep:argon2", "dep:rand", "dep:uuid", "dep:chrono", "dep:password-hash", "dep:axum", "dep:tower", "dep:sha2"]
+password-hash = ["dep:password-hash"]
+
+# PDF 내보내기 (네이티브 전용, Task #21)
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+svg2pdf = "0.13"
+usvg = "0.45"
+resvg = { version = "0.45", optional = true }
+pdf-writer = "0.12"
+subsetter = "0.2"
+ttf-parser = "0.25"
+skia-safe = { version = "0.99.0", optional = true, default-features = false, features = ["binary-cache", "embed-icudtl", "pdf", "textlayout"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = [
+    "CanvasRenderingContext2d",
+    "CanvasGradient",
+    "CanvasPattern",
+    "HtmlCanvasElement",
+    "HtmlImageElement",
+    "TextMetrics",
+    "Document",
+    "Window",
+    "console",
+] }
+js-sys = "0.3"
+
+[dev-dependencies]
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] }
+wasm-bindgen-test = "0.3"
+
+# ── Clippy 린트 정책 ──
+# 리팩토링(타스크 142) 각 단계 완료 시 allow → warn → deny 전환
+#
+# [Phase 0] 기준선 설정 — 기존 코드의 구조적 경고 허용
+# [Phase 1-3] wasm_api/renderer 분할 완료 후: too_many_arguments, cognitive_complexity → warn
+# [Phase 4-6] 전체 분할 완료 후: 전 항목 warn 또는 deny
+#
+[lints.clippy]
+# ── 구조적 경고: 리팩토링에서 해결 예정 ──
+too_many_arguments = "allow"        # Phase 1-3 완료 후 warn
+type_complexity = "allow"           # Phase 1-3 완료 후 warn
+cognitive_complexity = "allow"      # Phase 4 완료 후 warn
+needless_pass_by_value = "allow"    # Phase 4 완료 후 warn
+# ── 코드 스타일: 리팩토링 과정에서 점진 수정 ──
+redundant_closure = "allow"         # 각 파일 분할 시 수정
+field_reassign_with_default = "allow"  # 각 파일 분할 시 수정
+manual_div_ceil = "allow"           # 각 파일 분할 시 수정
+manual_range_contains = "allow"     # 각 파일 분할 시 수정
+unnecessary_cast = "allow"          # 각 파일 분할 시 수정
+collapsible_if = "allow"            # 각 파일 분할 시 수정
+unnecessary_map_or = "allow"         # 각 파일 분할 시 수정
+needless_borrow = "allow"           # 각 파일 분할 시 수정
+if_same_then_else = "allow"         # 각 파일 분할 시 수정
+needless_range_loop = "allow"       # 각 파일 분할 시 수정
+option_map_or_none = "allow"        # 각 파일 분할 시 수정
+bool_comparison = "allow"           # 각 파일 분할 시 수정
+collapsible_else_if = "allow"       # 각 파일 분할 시 수정
+collapsible_match = "allow"         # 각 파일 분할 시 수정
+needless_borrows_for_generic_args = "allow"
+vec_init_then_push = "allow"
+single_match = "allow"
+match_like_matches_macro = "allow"
+useless_format = "allow"
+derivable_impls = "allow"
+redundant_pattern_matching = "allow"
+iter_cloned_collect = "allow"
+manual_clamp = "allow"
+manual_saturating_arithmetic = "allow"
+manual_rem_euclid = "allow"
+manual_strip = "allow"
+manual_is_ascii_check = "allow"
+clone_on_copy = "allow"
+explicit_into_iter_loop = "allow"
+needless_lifetimes = "allow"
+filter_map_identity = "allow"
+ptr_arg = "allow"
+should_implement_trait = "allow"
+new_without_default = "allow"
+assign_op_pattern = "allow"
+blocks_in_conditions = "allow"
+enum_variant_names = "allow"
+repeat_vec_with_capacity = "allow"
+manual_repeat_n = "allow"
+useless_conversion = "allow"
+same_item_push = "allow"
+nonminimal_bool = "allow"
+implicit_saturating_sub = "allow"
+unused_enumerate_index = "allow"
+unnecessary_filter_map = "allow"
+manual_pattern_char_comparison = "allow"
+# ── 새 코드 품질 게이팅: 즉시 적용 ──
+large_enum_variant = "warn"
+
+[lints.rust]
+# dead_code, unused 계열 — 리팩토링 과정에서 정리
+dead_code = "allow"
+unused_variables = "allow"
+unused_imports = "allow"
+unused_mut = "allow"
+unused_assignments = "allow"
+unused_macros = "allow"
+# wmf 모듈의 tracing feature cfg 경고 억제
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(feature, values("tracing", "svg"))'] }
+
+# PR #599 PNG 게이트웨이 검증 도구 — native-skia feature 필수
+[[example]]
+name = "pr599_png_gateway"
+required-features = ["native-skia"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.release-test]
+inherits = "release"
+lto = false
+codegen-units = 16
