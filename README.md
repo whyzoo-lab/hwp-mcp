@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/logo/logo-256.png" alt="HWP MCP" width="112" />
-</p>
 
 <h1 align="center">HWP MCP</h1>
 
@@ -17,7 +14,7 @@
 </p>
 
 <p align="center">
-  Developed by <a href="https://whyzoo.com"><strong>주식회사 와이주 (WhyZOO)</strong></a> · rhwp 오픈소스 엔진 기반
+  Developed by <a href="https://whyzoo.com"><strong>주식회사 와이주 (WhyZOO)</strong></a>
 </p>
 
 ---
